@@ -1,0 +1,27 @@
+{
+  "name": "std/js",
+  "version": "0.1.0",
+  "license": "ISC",
+  "build": {
+    "native": {
+      "includePaths": [
+        "vendor/quickjs"
+      ],
+      "sourceFiles": [
+        "vendor/quickjs/dtoa.c",
+        "vendor/quickjs/libregexp.c",
+        "vendor/quickjs/libunicode.c",
+        "vendor/quickjs/quickjs.c"
+      ],
+      "defines": [
+        "_GNU_SOURCE",
+        "QUICKJS_NG_BUILD"
+      ],
+      "extraCopyPaths": [
+        "./native_js.hpp",
+        "vendor/quickjs/LICENSE"
+      ]
+    }
+  },
+  "dependencies": {}
+}
