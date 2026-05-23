@@ -26,7 +26,7 @@ struct JsError {
 
 class JsEngine {
 public:
-    static std::shared_ptr<JsEngine> create(
+    static std::shared_ptr<JsEngine> constructor(
         int64_t memoryLimitBytes = 64LL * 1024LL * 1024LL,
         int64_t maxStackBytes = 1024LL * 1024LL,
         int32_t timeoutMillis = 1000

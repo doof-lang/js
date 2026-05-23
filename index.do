@@ -5,7 +5,7 @@ export import class JsError from "./native_js.hpp" as doof_js::JsError {
 }
 
 export import class JsEngine from "./native_js.hpp" as doof_js::JsEngine {
-  static create(
+  static constructor(
     memoryLimitBytes: long = 67108864L,
     maxStackBytes: long = 1048576L,
     timeoutMillis: int = 1000,
