@@ -2,6 +2,15 @@
   "name": "std/js",
   "version": "0.1.0",
   "license": "ISC",
+  "externalDependencies": {
+    "quickjs": {
+      "kind": "git",
+      "url": "https://github.com/quickjs-ng/quickjs.git",
+      "ref": "v0.14.0",
+      "commit": "3c051980ab7e783dfbfb1c70c014ce5e05ecf24c",
+      "destination": "vendor/quickjs"
+    }
+  },
   "build": {
     "native": {
       "includePaths": [
