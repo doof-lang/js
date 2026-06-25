@@ -19,3 +19,8 @@ The default constructor profile is bounded for ordinary embedded scripting:
 - 1000 ms timeout
 
 Doof automatically acquires the pinned QuickJS-NG source tree into `vendor/quickjs` during build/test, so builds do not depend on a host JavaScript engine install.
+
+## Documentation
+
+- [Guide and API reference](docs/API.md) explains engine limits, JSON boundary rules, errors, and the exported QuickJS-backed API.
+- Tests can be run with `doof test js`.
