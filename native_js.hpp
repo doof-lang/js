@@ -4,7 +4,9 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <exception>
 #include <limits>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -26,6 +28,10 @@ struct JsError {
 
 class JsEngine {
 public:
+    using JsonHandler = doof::callback<doof::Result<doof::JsonValue, std::string>(
+        std::shared_ptr<std::vector<doof::JsonValue>>
+    )>;
+
     static std::shared_ptr<JsEngine> constructor(
         int64_t memoryLimitBytes = 64LL * 1024LL * 1024LL,
         int64_t maxStackBytes = 1024LL * 1024LL,
@@ -122,6 +128,42 @@ public:
         return converted;
     }
 
+    doof::Result<void, std::shared_ptr<JsError>> bindJson(
+        const std::string& name,
+        JsonHandler handler
+    ) {
+        if (name.empty()) {
+            return doof::Result<void, std::shared_ptr<JsError>>::failure(
+                makeError("bind", "JavaScript binding name must not be empty")
+            );
+        }
+
+        handlers_.insert_or_assign(name, std::move(handler));
+
+        JSValue global = JS_GetGlobalObject(ctx_);
+        JSValue functionName = JS_NewStringLen(ctx_, name.data(), name.size());
+        if (JS_IsException(functionName)) {
+            JS_FreeValue(ctx_, global);
+            return doof::Result<void, std::shared_ptr<JsError>>::failure(exceptionError("bind"));
+        }
+
+        JSValue data[1] = { functionName };
+        JSValue function = JS_NewCFunctionData(ctx_, &JsEngine::boundJsonFunction, 0, 0, 1, data);
+        JS_FreeValue(ctx_, functionName);
+        if (JS_IsException(function)) {
+            JS_FreeValue(ctx_, global);
+            return doof::Result<void, std::shared_ptr<JsError>>::failure(exceptionError("bind"));
+        }
+
+        if (JS_SetPropertyStr(ctx_, global, name.c_str(), function) < 0) {
+            JS_FreeValue(ctx_, global);
+            return doof::Result<void, std::shared_ptr<JsError>>::failure(exceptionError("bind"));
+        }
+
+        JS_FreeValue(ctx_, global);
+        return doof::Result<void, std::shared_ptr<JsError>>::success();
+    }
+
 private:
     using JsonValueResult = doof::Result<doof::JsonValue, std::shared_ptr<JsError>>;
     using JsValueResult = doof::Result<JSValue, std::shared_ptr<JsError>>;
@@ -132,6 +174,7 @@ private:
     int32_t timeoutMillis_ = 0;
     bool running_ = false;
     std::chrono::steady_clock::time_point deadline_ {};
+    std::map<std::string, JsonHandler> handlers_;
 
     JsEngine(int64_t memoryLimitBytes, int64_t maxStackBytes, int32_t timeoutMillis)
         : timeoutMillis_(timeoutMillis) {
@@ -153,6 +196,7 @@ private:
             runtime_ = nullptr;
             doof::panic("failed to create QuickJS context");
         }
+        JS_SetContextOpaque(ctx_, this);
 
         static constexpr const char* validatorSource = R"JS(
 (value => {
@@ -199,6 +243,65 @@ private:
             return 0;
         }
         return std::chrono::steady_clock::now() >= engine->deadline_ ? 1 : 0;
+    }
+
+    static JSValue boundJsonFunction(
+        JSContext* ctx,
+        JSValueConst,
+        int argc,
+        JSValueConst* argv,
+        int,
+        JSValue* funcData
+    ) {
+        auto* engine = static_cast<JsEngine*>(JS_GetContextOpaque(ctx));
+        if (engine == nullptr) {
+            return JS_ThrowInternalError(ctx, "missing Doof JavaScript engine");
+        }
+
+        const char* nameText = JS_ToCString(ctx, funcData[0]);
+        if (nameText == nullptr) {
+            return JS_EXCEPTION;
+        }
+        std::string name(nameText);
+        JS_FreeCString(ctx, nameText);
+
+        return engine->callBoundJson(name, argc, argv);
+    }
+
+    JSValue callBoundJson(const std::string& name, int argc, JSValueConst* argv) {
+        auto handler = handlers_.find(name);
+        if (handler == handlers_.end()) {
+            return JS_ThrowReferenceError(ctx_, "No Doof binding registered for '%s'", name.c_str());
+        }
+
+        auto args = std::make_shared<std::vector<doof::JsonValue>>();
+        args->reserve(static_cast<size_t>(argc));
+        for (int index = 0; index < argc; ++index) {
+            auto converted = valueToJson(argv[index]);
+            if (converted.isFailure()) {
+                const auto& error = converted.error();
+                return JS_ThrowTypeError(ctx_, "%s", error->message.c_str());
+            }
+            args->push_back(converted.value());
+        }
+
+        try {
+            auto result = handler->second.call(args);
+            if (result.isFailure()) {
+                return JS_ThrowPlainError(ctx_, "%s", result.error().c_str());
+            }
+
+            auto converted = jsonToValue(result.value());
+            if (converted.isFailure()) {
+                const auto& error = converted.error();
+                return JS_ThrowTypeError(ctx_, "%s", error->message.c_str());
+            }
+            return converted.value();
+        } catch (const doof::Panic& e) {
+            return JS_ThrowInternalError(ctx_, "%s", e.what());
+        } catch (const std::exception& e) {
+            return JS_ThrowInternalError(ctx_, "%s", e.what());
+        }
     }
 
     void beginExecution() {

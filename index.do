@@ -4,6 +4,8 @@ export import class JsError from "./native_js.hpp" as doof_js::JsError {
   stack: string | null
 }
 
+export type JsJsonHandler = (args: JsonValue[]): Result<JsonValue, string>
+
 export import class JsEngine from "./native_js.hpp" as doof_js::JsEngine {
   static constructor(
     memoryLimitBytes: long = 67108864L,
@@ -14,4 +16,5 @@ export import class JsEngine from "./native_js.hpp" as doof_js::JsEngine {
   exec(source: string): Result<void, JsError>
   eval(source: string): Result<JsonValue, JsError>
   callJson(functionName: string, args: JsonValue[]): Result<JsonValue, JsError>
+  bindJson(name: string, handler: JsJsonHandler): Result<void, JsError>
 }

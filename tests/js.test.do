@@ -1,4 +1,4 @@
-import { JsEngine, JsError } from "../index"
+import { JsEngine, JsError, JsJsonHandler } from "../index"
 import { formatJsonValue } from "std/json"
 
 function requireEngine(): JsEngine {
@@ -79,6 +79,26 @@ function requireCallFailure(engine: JsEngine, name: string, args: JsonValue[] = 
   assert(error != null, "expected call failure helper to produce an error")
   return error!
 }
+
+function requireBind(engine: JsEngine, name: string, handler: JsJsonHandler): void {
+  case engine.bindJson(name, handler) {
+    s: Success -> {}
+    f: Failure -> assert(false, "expected bind success: ${f.error.kind}: ${f.error.message}")
+  }
+}
+
+function requireBindFailure(engine: JsEngine, name: string, handler: JsJsonHandler): JsError {
+  let error: JsError | null = null
+
+  case engine.bindJson(name, handler) {
+    s: Success -> assert(false, "expected bind failure")
+    f: Failure -> { error = f.error }
+  }
+
+  assert(error != null, "expected bind failure helper to produce an error")
+  return error!
+}
+
 export function testEvalRoundTripsJsonValues(): void {
   engine := requireEngine()
   value := requireEval(engine, "({ ok: true, items: [1, 2, 'three'], nested: { value: null } })")
@@ -93,6 +113,75 @@ export function testDefinitionsPersistAcrossCalls(): void {
   requireExec(engine, "function add(a, b) { return a + b }")
   answer := requireCall(engine, "add", [20, 22])
   assert(formatJsonValue(answer) == "42", "expected globals to persist across engine calls")
+}
+
+export function testBoundDoofHandlerIsCallableFromJavaScript(): void {
+  engine := requireEngine()
+  requireBind(engine, "addOne", (args: JsonValue[]): Result<JsonValue, string> => {
+    value := args[0] as int else { return Failure("expected int argument") }
+    return Success(value + 1)
+  })
+
+  answer := requireEval(engine, "addOne(41)")
+  assert(formatJsonValue(answer) == "42", "expected JS to call registered Doof handler")
+}
+
+export function testBoundHandlerReceivesMultipleJsonArguments(): void {
+  engine := requireEngine()
+  let received = ""
+  requireBind(engine, "capture", (args: JsonValue[]): Result<JsonValue, string> => {
+    received = formatJsonValue(args)
+    return Success(args.length)
+  })
+
+  answer := requireEval(engine, "capture('a', 2, { ok: true })")
+  assert(formatJsonValue(answer) == "3", "expected handler to return argument count")
+  assert(received == "[\"a\",2,{\"ok\":true}]", "expected handler to receive JS arguments as JsonValue[]")
+}
+
+export function testBoundHandlerWorksThroughPersistedFunctionsAndCallJson(): void {
+  engine := requireEngine()
+  requireBind(engine, "double", (args: JsonValue[]): Result<JsonValue, string> => {
+    value := args[0] as int else { return Failure("expected int argument") }
+    return Success(value * 2)
+  })
+  requireExec(engine, "function useDouble(value) { return double(value) + 1 }")
+
+  answer := requireCall(engine, "useDouble", [20])
+  assert(formatJsonValue(answer) == "41", "expected callJson to reach Doof handler through JS")
+}
+
+export function testBoundHandlerReplacement(): void {
+  engine := requireEngine()
+  requireBind(engine, "value", (args: JsonValue[]): Result<JsonValue, string> => Success("old"))
+  requireBind(engine, "value", (args: JsonValue[]): Result<JsonValue, string> => Success("new"))
+
+  answer := requireEval(engine, "value()")
+  assert(formatJsonValue(answer) == "\"new\"", "expected rebinding to replace the previous handler")
+}
+
+export function testBindingEmptyNameFails(): void {
+  engine := requireEngine()
+  error := requireBindFailure(engine, "", (args: JsonValue[]): Result<JsonValue, string> => Success(null))
+  assert(error.kind == "bind", "expected empty binding names to use bind kind")
+}
+
+export function testBoundHandlerFailureSurfacesAsRuntimeError(): void {
+  engine := requireEngine()
+  requireBind(engine, "failDoof", (args: JsonValue[]): Result<JsonValue, string> => Failure("nope"))
+
+  error := requireEvalFailure(engine, "failDoof()")
+  assert(error.kind == "runtime", "expected handler failure to become a JS runtime failure")
+  assert(error.message.contains("nope"), "expected handler failure message")
+}
+
+export function testBoundHandlerRejectsNonJsonArguments(): void {
+  engine := requireEngine()
+  requireBind(engine, "echo", (args: JsonValue[]): Result<JsonValue, string> => Success(args.length))
+
+  error := requireEvalFailure(engine, "echo(undefined)")
+  assert(error.kind == "runtime", "expected non-JSON JS arguments to throw during callback")
+  assert(error.message.contains("JSON-compatible"), "expected JSON boundary message")
 }
 
 export function testExecAcceptsNonJsonCompletionValues(): void {

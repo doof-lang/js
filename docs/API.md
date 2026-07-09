@@ -22,6 +22,17 @@ answer := try! engine.callJson("add", [20, 22])
 `JsEngine` keeps one JavaScript context alive across calls. Values defined with
 `exec` remain available to later `eval` and `callJson` calls on the same engine.
 
+Register Doof handlers with `bindJson` when JavaScript code needs to call back
+into the host:
+
+```doof
+try! engine.bindJson("addOne", (args: JsonValue[]): Result<JsonValue, string> => {
+  value := args[0] as int else { return Failure("expected int argument") }
+  return Success(value + 1)
+})
+answer := try! engine.eval("addOne(41)")
+```
+
 ## Engine Limits
 
 The default constructor is bounded for ordinary embedded scripting:
@@ -42,8 +53,9 @@ fit Doof's `JsonValue` representation.
 JavaScript values such as `undefined`, functions, symbols, `bigint`, cyclic
 structures, and non-finite numbers fail with `JsError`.
 
-Arguments passed to `callJson` are `JsonValue[]`, so the same JSON boundary
-applies in the other direction.
+Arguments passed to `callJson` are `JsonValue[]`, and arguments received by
+`bindJson` handlers are also `JsonValue[]`, so the same JSON boundary applies in
+both directions.
 
 ## Errors
 
@@ -53,6 +65,10 @@ the broad failure category, `message` contains the human-readable failure, and
 
 Use `try!` for setup scripts that should abort the caller on failure, and handle
 `Failure` explicitly when evaluating user input.
+
+When a `bindJson` handler returns `Failure(message)`, the generated JavaScript
+function throws an `Error` and the outer `eval`, `exec`, or `callJson` reports a
+runtime `JsError`.
 
 ## API
 
@@ -69,6 +85,15 @@ Fields:
 - `stack: string | null`
 
 Defined in [index.do](../index.do).
+
+### `JsJsonHandler`
+
+```doof
+export type JsJsonHandler = (args: JsonValue[]): Result<JsonValue, string>
+```
+
+Handlers registered with `bindJson` receive the JavaScript argument list as JSON
+values and return a JSON-compatible result or an error message.
 
 ### `JsEngine`
 
@@ -91,5 +116,6 @@ Methods:
 - `exec(source: string): Result<void, JsError>` runs source for side effects.
 - `eval(source: string): Result<JsonValue, JsError>` evaluates source and returns a JSON-compatible value.
 - `callJson(functionName: string, args: JsonValue[]): Result<JsonValue, JsError>` calls a global JavaScript function with JSON arguments.
+- `bindJson(name: string, handler: JsJsonHandler): Result<void, JsError>` registers or replaces a synchronous global JavaScript function backed by a Doof handler.
 
 Defined in [index.do](../index.do).
