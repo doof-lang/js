@@ -57,7 +57,7 @@ public:
 
         if (JS_IsException(value)) {
             JS_FreeValue(ctx_, value);
-            return doof::Result<doof::JsonValue, std::shared_ptr<JsError>>::failure(exceptionError());
+            return doof::Failure<std::shared_ptr<JsError>>{exceptionError()};
         }
 
         auto converted = valueToJson(value);
@@ -72,11 +72,11 @@ public:
 
         if (JS_IsException(value)) {
             JS_FreeValue(ctx_, value);
-            return doof::Result<void, std::shared_ptr<JsError>>::failure(exceptionError());
+            return doof::Failure<std::shared_ptr<JsError>>{exceptionError()};
         }
 
         JS_FreeValue(ctx_, value);
-        return doof::Result<void, std::shared_ptr<JsError>>::success();
+        return doof::Success<void>{};
     }
 
     doof::Result<doof::JsonValue, std::shared_ptr<JsError>> callJson(
@@ -88,7 +88,7 @@ public:
         if (JS_IsException(function)) {
             JS_FreeValue(ctx_, global);
             JS_FreeValue(ctx_, function);
-            return doof::Result<doof::JsonValue, std::shared_ptr<JsError>>::failure(exceptionError());
+            return doof::Failure<std::shared_ptr<JsError>>{exceptionError()};
         }
         if (!JS_IsFunction(ctx_, function)) {
             JS_FreeValue(ctx_, function);
@@ -101,13 +101,13 @@ public:
         if (args) {
             for (const auto& arg : *args) {
                 auto converted = jsonToValue(arg);
-                if (converted.isFailure()) {
+                if (doof::is_failure(converted)) {
                     freeValues(jsArgs);
                     JS_FreeValue(ctx_, function);
                     JS_FreeValue(ctx_, global);
-                    return doof::Result<doof::JsonValue, std::shared_ptr<JsError>>::failure(converted.error());
+                    return doof::Failure<std::shared_ptr<JsError>>{doof::failure_error(converted)};
                 }
-                jsArgs.push_back(converted.value());
+                jsArgs.push_back(doof::success_value(converted));
             }
         }
 
@@ -120,7 +120,7 @@ public:
 
         if (JS_IsException(result)) {
             JS_FreeValue(ctx_, result);
-            return doof::Result<doof::JsonValue, std::shared_ptr<JsError>>::failure(exceptionError());
+            return doof::Failure<std::shared_ptr<JsError>>{exceptionError()};
         }
 
         auto converted = valueToJson(result);
@@ -133,9 +133,7 @@ public:
         JsonHandler handler
     ) {
         if (name.empty()) {
-            return doof::Result<void, std::shared_ptr<JsError>>::failure(
-                makeError("bind", "JavaScript binding name must not be empty")
-            );
+            return doof::Failure<std::shared_ptr<JsError>>{makeError("bind", "JavaScript binding name must not be empty")};
         }
 
         handlers_.insert_or_assign(name, std::move(handler));
@@ -144,7 +142,7 @@ public:
         JSValue functionName = JS_NewStringLen(ctx_, name.data(), name.size());
         if (JS_IsException(functionName)) {
             JS_FreeValue(ctx_, global);
-            return doof::Result<void, std::shared_ptr<JsError>>::failure(exceptionError("bind"));
+            return doof::Failure<std::shared_ptr<JsError>>{exceptionError("bind")};
         }
 
         JSValue data[1] = { functionName };
@@ -152,16 +150,16 @@ public:
         JS_FreeValue(ctx_, functionName);
         if (JS_IsException(function)) {
             JS_FreeValue(ctx_, global);
-            return doof::Result<void, std::shared_ptr<JsError>>::failure(exceptionError("bind"));
+            return doof::Failure<std::shared_ptr<JsError>>{exceptionError("bind")};
         }
 
         if (JS_SetPropertyStr(ctx_, global, name.c_str(), function) < 0) {
             JS_FreeValue(ctx_, global);
-            return doof::Result<void, std::shared_ptr<JsError>>::failure(exceptionError("bind"));
+            return doof::Failure<std::shared_ptr<JsError>>{exceptionError("bind")};
         }
 
         JS_FreeValue(ctx_, global);
-        return doof::Result<void, std::shared_ptr<JsError>>::success();
+        return doof::Success<void>{};
     }
 
 private:
@@ -278,25 +276,25 @@ private:
         args->reserve(static_cast<size_t>(argc));
         for (int index = 0; index < argc; ++index) {
             auto converted = valueToJson(argv[index]);
-            if (converted.isFailure()) {
-                const auto& error = converted.error();
+            if (doof::is_failure(converted)) {
+                const auto& error = doof::failure_error(converted);
                 return JS_ThrowTypeError(ctx_, "%s", error->message.c_str());
             }
-            args->push_back(converted.value());
+            args->push_back(doof::success_value(converted));
         }
 
         try {
             auto result = handler->second.call(args);
-            if (result.isFailure()) {
-                return JS_ThrowPlainError(ctx_, "%s", result.error().c_str());
+            if (doof::is_failure(result)) {
+                return JS_ThrowPlainError(ctx_, "%s", doof::failure_error(result).c_str());
             }
 
-            auto converted = jsonToValue(result.value());
-            if (converted.isFailure()) {
-                const auto& error = converted.error();
+            auto converted = jsonToValue(doof::success_value(result));
+            if (doof::is_failure(converted)) {
+                const auto& error = doof::failure_error(converted);
                 return JS_ThrowTypeError(ctx_, "%s", error->message.c_str());
             }
-            return converted.value();
+            return doof::success_value(converted);
         } catch (const doof::Panic& e) {
             return JS_ThrowInternalError(ctx_, "%s", e.what());
         } catch (const std::exception& e) {
@@ -324,7 +322,7 @@ private:
             JS_FreeValue(ctx_, serialized);
             auto error = exceptionError();
             error->kind = "convert";
-            return JsonValueResult::failure(error);
+            return doof::Failure<std::shared_ptr<JsError>>{error};
         }
         if (!JS_IsString(serialized)) {
             JS_FreeValue(ctx_, serialized);
@@ -337,24 +335,24 @@ private:
 
     JsonValueResult jsToJsonValue(JSValueConst value) {
         if (JS_IsNull(value)) {
-            return JsonValueResult::success(doof::JsonValue(nullptr));
+            return doof::Success<doof::JsonValue>{doof::JsonValue(nullptr)};
         }
         if (JS_IsBool(value)) {
-            return JsonValueResult::success(doof::JsonValue(static_cast<bool>(JS_ToBool(ctx_, value))));
+            return doof::Success<doof::JsonValue>{doof::JsonValue(static_cast<bool>(JS_ToBool(ctx_, value)))};
         }
         if (JS_IsString(value)) {
             const char* text = JS_ToCString(ctx_, value);
             if (text == nullptr) {
-                return JsonValueResult::failure(exceptionError("convert"));
+                return doof::Failure<std::shared_ptr<JsError>>{exceptionError("convert")};
             }
             std::string copied(text);
             JS_FreeCString(ctx_, text);
-            return JsonValueResult::success(doof::JsonValue(std::move(copied)));
+            return doof::Success<doof::JsonValue>{doof::JsonValue(std::move(copied))};
         }
         if (JS_IsNumber(value)) {
             double number = 0.0;
             if (JS_ToFloat64(ctx_, &number, value) < 0) {
-                return JsonValueResult::failure(exceptionError("convert"));
+                return doof::Failure<std::shared_ptr<JsError>>{exceptionError("convert")};
             }
             if (!std::isfinite(number)) {
                 return failure("convert", "value is not JSON-compatible: non-finite number");
@@ -362,21 +360,21 @@ private:
             if (std::trunc(number) == number) {
                 if (number >= static_cast<double>(std::numeric_limits<int32_t>::min())
                     && number <= static_cast<double>(std::numeric_limits<int32_t>::max())) {
-                    return JsonValueResult::success(doof::JsonValue(static_cast<int32_t>(number)));
+                    return doof::Success<doof::JsonValue>{doof::JsonValue(static_cast<int32_t>(number))};
                 }
                 if (number >= static_cast<double>(std::numeric_limits<int64_t>::min())
                     && number <= static_cast<double>(std::numeric_limits<int64_t>::max())) {
-                    return JsonValueResult::success(doof::JsonValue(static_cast<int64_t>(number)));
+                    return doof::Success<doof::JsonValue>{doof::JsonValue(static_cast<int64_t>(number))};
                 }
             }
-            return JsonValueResult::success(doof::JsonValue(number));
+            return doof::Success<doof::JsonValue>{doof::JsonValue(number)};
         }
         if (JS_IsArray(value)) {
             JSValue lengthValue = JS_GetPropertyStr(ctx_, value, "length");
             uint32_t length = 0;
             if (JS_IsException(lengthValue) || JS_ToUint32(ctx_, &length, lengthValue) < 0) {
                 JS_FreeValue(ctx_, lengthValue);
-                return JsonValueResult::failure(exceptionError("convert"));
+                return doof::Failure<std::shared_ptr<JsError>>{exceptionError("convert")};
             }
             JS_FreeValue(ctx_, lengthValue);
 
@@ -386,22 +384,22 @@ private:
                 JSValue item = JS_GetPropertyUint32(ctx_, value, index);
                 if (JS_IsException(item)) {
                     JS_FreeValue(ctx_, item);
-                    return JsonValueResult::failure(exceptionError("convert"));
+                    return doof::Failure<std::shared_ptr<JsError>>{exceptionError("convert")};
                 }
                 auto converted = jsToJsonValue(item);
                 JS_FreeValue(ctx_, item);
-                if (converted.isFailure()) {
+                if (doof::is_failure(converted)) {
                     return converted;
                 }
-                result->push_back(converted.value());
+                result->push_back(doof::success_value(converted));
             }
-            return JsonValueResult::success(doof::JsonValue(std::move(result)));
+            return doof::Success<doof::JsonValue>{doof::JsonValue(std::move(result))};
         }
         if (JS_IsObject(value)) {
             JSPropertyEnum* properties = nullptr;
             uint32_t count = 0;
             if (JS_GetOwnPropertyNames(ctx_, &properties, &count, value, JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) < 0) {
-                return JsonValueResult::failure(exceptionError("convert"));
+                return doof::Failure<std::shared_ptr<JsError>>{exceptionError("convert")};
             }
 
             auto result = std::make_shared<doof::JsonObject::element_type>();
@@ -409,7 +407,7 @@ private:
                 const char* keyText = JS_AtomToCString(ctx_, properties[index].atom);
                 if (keyText == nullptr) {
                     freePropertyNames(properties, count);
-                    return JsonValueResult::failure(exceptionError("convert"));
+                    return doof::Failure<std::shared_ptr<JsError>>{exceptionError("convert")};
                 }
                 std::string key(keyText);
                 JS_FreeCString(ctx_, keyText);
@@ -418,18 +416,18 @@ private:
                 if (JS_IsException(field)) {
                     JS_FreeValue(ctx_, field);
                     freePropertyNames(properties, count);
-                    return JsonValueResult::failure(exceptionError("convert"));
+                    return doof::Failure<std::shared_ptr<JsError>>{exceptionError("convert")};
                 }
                 auto converted = jsToJsonValue(field);
                 JS_FreeValue(ctx_, field);
-                if (converted.isFailure()) {
+                if (doof::is_failure(converted)) {
                     freePropertyNames(properties, count);
                     return converted;
                 }
-                result->insert_or_assign(key, converted.value());
+                result->insert_or_assign(key, doof::success_value(converted));
             }
             freePropertyNames(properties, count);
-            return JsonValueResult::success(doof::JsonValue(std::move(result)));
+            return doof::Success<doof::JsonValue>{doof::JsonValue(std::move(result))};
         }
         return failure("convert", "value is not JSON-compatible");
     }
@@ -447,73 +445,73 @@ private:
     JsValueResult jsonToValue(const doof::JsonValue& value) {
         const auto& storage = doof::json_storage(value);
         if (std::holds_alternative<std::monostate>(storage)) {
-            return JsValueResult::success(JS_NULL);
+            return doof::Success<JSValue>{JS_NULL};
         }
         if (const auto* boolean = std::get_if<bool>(&storage)) {
-            return JsValueResult::success(JS_NewBool(ctx_, *boolean));
+            return doof::Success<JSValue>{JS_NewBool(ctx_, *boolean)};
         }
         if (const auto* integer = std::get_if<int32_t>(&storage)) {
-            return JsValueResult::success(JS_NewInt32(ctx_, *integer));
+            return doof::Success<JSValue>{JS_NewInt32(ctx_, *integer)};
         }
         if (const auto* integer = std::get_if<int64_t>(&storage)) {
-            return JsValueResult::success(JS_NewInt64(ctx_, *integer));
+            return doof::Success<JSValue>{JS_NewInt64(ctx_, *integer)};
         }
         if (const auto* number = std::get_if<float>(&storage)) {
             if (!std::isfinite(*number)) {
-                return JsValueResult::failure(makeError("convert", "JSON argument contains a non-finite number"));
+                return doof::Failure<std::shared_ptr<JsError>>{makeError("convert", "JSON argument contains a non-finite number")};
             }
-            return JsValueResult::success(JS_NewFloat64(ctx_, static_cast<double>(*number)));
+            return doof::Success<JSValue>{JS_NewFloat64(ctx_, static_cast<double>(*number))};
         }
         if (const auto* number = std::get_if<double>(&storage)) {
             if (!std::isfinite(*number)) {
-                return JsValueResult::failure(makeError("convert", "JSON argument contains a non-finite number"));
+                return doof::Failure<std::shared_ptr<JsError>>{makeError("convert", "JSON argument contains a non-finite number")};
             }
-            return JsValueResult::success(JS_NewFloat64(ctx_, *number));
+            return doof::Success<JSValue>{JS_NewFloat64(ctx_, *number)};
         }
         if (const auto* text = std::get_if<std::string>(&storage)) {
-            return JsValueResult::success(JS_NewStringLen(ctx_, text->data(), text->size()));
+            return doof::Success<JSValue>{JS_NewStringLen(ctx_, text->data(), text->size())};
         }
         if (const auto* array = std::get_if<doof::JsonArray>(&storage)) {
             JSValue result = JS_NewArray(ctx_);
             if (JS_IsException(result)) {
-                return JsValueResult::failure(exceptionError("convert"));
+                return doof::Failure<std::shared_ptr<JsError>>{exceptionError("convert")};
             }
             if (*array) {
                 for (uint32_t index = 0; index < (*array)->size(); ++index) {
                     auto item = jsonToValue((**array)[index]);
-                    if (item.isFailure()) {
+                    if (doof::is_failure(item)) {
                         JS_FreeValue(ctx_, result);
                         return item;
                     }
-                    if (JS_SetPropertyUint32(ctx_, result, index, item.value()) < 0) {
+                    if (JS_SetPropertyUint32(ctx_, result, index, doof::success_value(item)) < 0) {
                         JS_FreeValue(ctx_, result);
-                        return JsValueResult::failure(exceptionError("convert"));
+                        return doof::Failure<std::shared_ptr<JsError>>{exceptionError("convert")};
                     }
                 }
             }
-            return JsValueResult::success(result);
+            return doof::Success<JSValue>{result};
         }
         if (const auto* object = std::get_if<doof::JsonObject>(&storage)) {
             JSValue result = JS_NewObject(ctx_);
             if (JS_IsException(result)) {
-                return JsValueResult::failure(exceptionError("convert"));
+                return doof::Failure<std::shared_ptr<JsError>>{exceptionError("convert")};
             }
             if (*object) {
                 for (const auto& entry : **object) {
                     auto field = jsonToValue(entry.second);
-                    if (field.isFailure()) {
+                    if (doof::is_failure(field)) {
                         JS_FreeValue(ctx_, result);
                         return field;
                     }
-                    if (JS_SetPropertyStr(ctx_, result, entry.first.c_str(), field.value()) < 0) {
+                    if (JS_SetPropertyStr(ctx_, result, entry.first.c_str(), doof::success_value(field)) < 0) {
                         JS_FreeValue(ctx_, result);
-                        return JsValueResult::failure(exceptionError("convert"));
+                        return doof::Failure<std::shared_ptr<JsError>>{exceptionError("convert")};
                     }
                 }
             }
-            return JsValueResult::success(result);
+            return doof::Success<JSValue>{result};
         }
-        return JsValueResult::failure(makeError("convert", "unsupported JSON argument value"));
+        return doof::Failure<std::shared_ptr<JsError>>{makeError("convert", "unsupported JSON argument value")};
     }
 
     std::shared_ptr<JsError> exceptionError(const std::string& fallbackKind = "runtime") {
@@ -566,7 +564,7 @@ private:
     }
 
     static JsonValueResult failure(std::string kind, std::string message) {
-        return JsonValueResult::failure(makeError(std::move(kind), std::move(message)));
+        return doof::Failure<std::shared_ptr<JsError>>{makeError(std::move(kind), std::move(message))};
     }
 
     void freeValues(std::vector<JSValue>& values) {
