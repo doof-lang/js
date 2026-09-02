@@ -28,7 +28,7 @@ The default constructor profile is bounded for ordinary embedded scripting:
 - 1 MiB stack limit
 - 1000 ms timeout
 
-Doof automatically acquires the pinned QuickJS-NG source tree into `vendor/quickjs` during build/test, so builds do not depend on a host JavaScript engine install.
+The stdlib bundle includes the curated QuickJS-NG source tree in `vendor/quickjs`, so builds do not depend on acquisition or a host JavaScript engine install.
 
 ## Documentation
 

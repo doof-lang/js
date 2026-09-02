@@ -5,7 +5,7 @@ evaluation. It is useful for plugin-style scripting, user expressions, migration
 helpers, or compatibility code where Doof owns the host process and JavaScript is
 an embedded guest.
 
-Doof automatically acquires the pinned QuickJS-NG source tree into
+The stdlib bundle includes the curated QuickJS-NG source tree in
 `vendor/quickjs` during build/test, so callers do not need a host JavaScript
 runtime installed.
 
