@@ -5,8 +5,8 @@ function requireEngine(): JsEngine {
   return JsEngine()
 }
 
-function requireEval(engine: JsEngine, source: string): JsonValue {
-  let value: JsonValue = none
+function requireEval(engine: JsEngine, source: string): SerialValue {
+  let value: SerialValue = none
   let found = false
 
   case engine.eval(source) {
@@ -28,8 +28,8 @@ function requireExec(engine: JsEngine, source: string): none {
   }
 }
 
-function requireCall(engine: JsEngine, name: string, args: JsonValue[]): JsonValue {
-  let value: JsonValue = none
+function requireCall(engine: JsEngine, name: string, args: SerialValue[]): SerialValue {
+  let value: SerialValue = none
   let found = false
 
   case engine.callJson(name, args) {
@@ -68,7 +68,7 @@ function requireExecFailure(engine: JsEngine, source: string): JsError {
   return error!
 }
 
-function requireCallFailure(engine: JsEngine, name: string, args: JsonValue[] = []): JsError {
+function requireCallFailure(engine: JsEngine, name: string, args: SerialValue[] = []): JsError {
   let error: JsError | none = none
 
   case engine.callJson(name, args) {
@@ -117,7 +117,7 @@ export function testDefinitionsPersistAcrossCalls(): none {
 
 export function testBoundDoofHandlerIsCallableFromJavaScript(): none {
   engine := requireEngine()
-  requireBind(engine, "addOne", (args: JsonValue[]): Result<JsonValue, string> => {
+  requireBind(engine, "addOne", (args: SerialValue[]): Result<SerialValue, string> => {
     value := args[0] as int else { return Failure("expected int argument") }
     return Success(value + 1)
   })
@@ -129,19 +129,19 @@ export function testBoundDoofHandlerIsCallableFromJavaScript(): none {
 export function testBoundHandlerReceivesMultipleJsonArguments(): none {
   engine := requireEngine()
   let received = ""
-  requireBind(engine, "capture", (args: JsonValue[]): Result<JsonValue, string> => {
+  requireBind(engine, "capture", (args: SerialValue[]): Result<SerialValue, string> => {
     received = formatJsonValue(args)
     return Success(args.length)
   })
 
   answer := requireEval(engine, "capture('a', 2, { ok: true })")
   assert(formatJsonValue(answer) == "3", "expected handler to return argument count")
-  assert(received == "[\"a\",2,{\"ok\":true}]", "expected handler to receive JS arguments as JsonValue[]")
+  assert(received == "[\"a\",2,{\"ok\":true}]", "expected handler to receive JS arguments as SerialValue[]")
 }
 
 export function testBoundHandlerWorksThroughPersistedFunctionsAndCallJson(): none {
   engine := requireEngine()
-  requireBind(engine, "double", (args: JsonValue[]): Result<JsonValue, string> => {
+  requireBind(engine, "double", (args: SerialValue[]): Result<SerialValue, string> => {
     value := args[0] as int else { return Failure("expected int argument") }
     return Success(value * 2)
   })
@@ -153,8 +153,8 @@ export function testBoundHandlerWorksThroughPersistedFunctionsAndCallJson(): non
 
 export function testBoundHandlerReplacement(): none {
   engine := requireEngine()
-  requireBind(engine, "value", (args: JsonValue[]): Result<JsonValue, string> => Success("old"))
-  requireBind(engine, "value", (args: JsonValue[]): Result<JsonValue, string> => Success("new"))
+  requireBind(engine, "value", (args: SerialValue[]): Result<SerialValue, string> => Success("old"))
+  requireBind(engine, "value", (args: SerialValue[]): Result<SerialValue, string> => Success("new"))
 
   answer := requireEval(engine, "value()")
   assert(formatJsonValue(answer) == "\"new\"", "expected rebinding to replace the previous handler")
@@ -162,13 +162,13 @@ export function testBoundHandlerReplacement(): none {
 
 export function testBindingEmptyNameFails(): none {
   engine := requireEngine()
-  error := requireBindFailure(engine, "", (args: JsonValue[]): Result<JsonValue, string> => Success(none))
+  error := requireBindFailure(engine, "", (args: SerialValue[]): Result<SerialValue, string> => Success(none))
   assert(error.kind == "bind", "expected empty binding names to use bind kind")
 }
 
 export function testBoundHandlerFailureSurfacesAsRuntimeError(): none {
   engine := requireEngine()
-  requireBind(engine, "failDoof", (args: JsonValue[]): Result<JsonValue, string> => Failure("nope"))
+  requireBind(engine, "failDoof", (args: SerialValue[]): Result<SerialValue, string> => Failure("nope"))
 
   error := requireEvalFailure(engine, "failDoof()")
   assert(error.kind == "runtime", "expected handler failure to become a JS runtime failure")
@@ -177,7 +177,7 @@ export function testBoundHandlerFailureSurfacesAsRuntimeError(): none {
 
 export function testBoundHandlerRejectsNonJsonArguments(): none {
   engine := requireEngine()
-  requireBind(engine, "echo", (args: JsonValue[]): Result<JsonValue, string> => Success(args.length))
+  requireBind(engine, "echo", (args: SerialValue[]): Result<SerialValue, string> => Success(args.length))
 
   error := requireEvalFailure(engine, "echo(undefined)")
   assert(error.kind == "runtime", "expected non-JSON JS arguments to throw during callback")

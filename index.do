@@ -4,7 +4,7 @@ export import class JsError from "./native_js.hpp" as doof_js::JsError {
   stack: string | none
 }
 
-export type JsJsonHandler = (args: JsonValue[]): Result<JsonValue, string>
+export type JsJsonHandler = (args: SerialValue[]): Result<SerialValue, string>
 
 export import class JsEngine from "./native_js.hpp" as doof_js::JsEngine {
   isolated static constructor(
@@ -14,7 +14,7 @@ export import class JsEngine from "./native_js.hpp" as doof_js::JsEngine {
   ): JsEngine
 
   isolated exec(source: string): Result<none, JsError>
-  isolated eval(source: string): Result<JsonValue, JsError>
-  isolated callJson(functionName: string, args: JsonValue[]): Result<JsonValue, JsError>
+  isolated eval(source: string): Result<SerialValue, JsError>
+  isolated callJson(functionName: string, args: SerialValue[]): Result<SerialValue, JsError>
   isolated bindJson(name: string, handler: JsJsonHandler): Result<none, JsError>
 }

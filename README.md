@@ -15,7 +15,7 @@ try answer := engine.callJson("add", [20, 22])
 Doof callbacks can be registered as synchronous global JavaScript functions:
 
 ```do
-try engine.bindJson("addOne", (args: JsonValue[]): Result<JsonValue, string> => {
+try engine.bindJson("addOne", (args: SerialValue[]): Result<SerialValue, string> => {
   value := args[0] as int else { return Failure("expected int argument") }
   return Success(value + 1)
 })

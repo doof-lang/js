@@ -28,8 +28,8 @@ struct JsError {
 
 class JsEngine {
 public:
-    using JsonHandler = doof::callback<doof::Result<doof::JsonValue, std::string>(
-        std::shared_ptr<std::vector<doof::JsonValue>>
+    using JsonHandler = doof::callback<doof::Result<doof::SerialValue, std::string>(
+        std::shared_ptr<std::vector<doof::SerialValue>>
     )>;
 
     static std::shared_ptr<JsEngine> constructor(
@@ -50,7 +50,7 @@ public:
         }
     }
 
-    doof::Result<doof::JsonValue, std::shared_ptr<JsError>> eval(const std::string& source) {
+    doof::Result<doof::SerialValue, std::shared_ptr<JsError>> eval(const std::string& source) {
         beginExecution();
         JSValue value = JS_Eval(ctx_, source.c_str(), source.size(), "<eval>", JS_EVAL_TYPE_GLOBAL);
         endExecution();
@@ -79,9 +79,9 @@ public:
         return doof::Success<void>{};
     }
 
-    doof::Result<doof::JsonValue, std::shared_ptr<JsError>> callJson(
+    doof::Result<doof::SerialValue, std::shared_ptr<JsError>> callJson(
         const std::string& functionName,
-        const std::shared_ptr<std::vector<doof::JsonValue>>& args
+        const std::shared_ptr<std::vector<doof::SerialValue>>& args
     ) {
         JSValue global = JS_GetGlobalObject(ctx_);
         JSValue function = JS_GetPropertyStr(ctx_, global, functionName.c_str());
@@ -163,7 +163,7 @@ public:
     }
 
 private:
-    using JsonValueResult = doof::Result<doof::JsonValue, std::shared_ptr<JsError>>;
+    using JsonValueResult = doof::Result<doof::SerialValue, std::shared_ptr<JsError>>;
     using JsValueResult = doof::Result<JSValue, std::shared_ptr<JsError>>;
 
     JSRuntime* runtime_ = nullptr;
@@ -272,7 +272,7 @@ private:
             return JS_ThrowReferenceError(ctx_, "No Doof binding registered for '%s'", name.c_str());
         }
 
-        auto args = std::make_shared<std::vector<doof::JsonValue>>();
+        auto args = std::make_shared<std::vector<doof::SerialValue>>();
         args->reserve(static_cast<size_t>(argc));
         for (int index = 0; index < argc; ++index) {
             auto converted = valueToJson(argv[index]);
@@ -335,10 +335,10 @@ private:
 
     JsonValueResult jsToJsonValue(JSValueConst value) {
         if (JS_IsNull(value)) {
-            return doof::Success<doof::JsonValue>{doof::JsonValue(nullptr)};
+            return doof::Success<doof::SerialValue>{doof::SerialValue(nullptr)};
         }
         if (JS_IsBool(value)) {
-            return doof::Success<doof::JsonValue>{doof::JsonValue(static_cast<bool>(JS_ToBool(ctx_, value)))};
+            return doof::Success<doof::SerialValue>{doof::SerialValue(static_cast<bool>(JS_ToBool(ctx_, value)))};
         }
         if (JS_IsString(value)) {
             const char* text = JS_ToCString(ctx_, value);
@@ -347,7 +347,7 @@ private:
             }
             std::string copied(text);
             JS_FreeCString(ctx_, text);
-            return doof::Success<doof::JsonValue>{doof::JsonValue(std::move(copied))};
+            return doof::Success<doof::SerialValue>{doof::SerialValue(std::move(copied))};
         }
         if (JS_IsNumber(value)) {
             double number = 0.0;
@@ -360,14 +360,14 @@ private:
             if (std::trunc(number) == number) {
                 if (number >= static_cast<double>(std::numeric_limits<int32_t>::min())
                     && number <= static_cast<double>(std::numeric_limits<int32_t>::max())) {
-                    return doof::Success<doof::JsonValue>{doof::JsonValue(static_cast<int32_t>(number))};
+                    return doof::Success<doof::SerialValue>{doof::SerialValue(static_cast<int32_t>(number))};
                 }
                 if (number >= static_cast<double>(std::numeric_limits<int64_t>::min())
                     && number <= static_cast<double>(std::numeric_limits<int64_t>::max())) {
-                    return doof::Success<doof::JsonValue>{doof::JsonValue(static_cast<int64_t>(number))};
+                    return doof::Success<doof::SerialValue>{doof::SerialValue(static_cast<int64_t>(number))};
                 }
             }
-            return doof::Success<doof::JsonValue>{doof::JsonValue(number)};
+            return doof::Success<doof::SerialValue>{doof::SerialValue(number)};
         }
         if (JS_IsArray(value)) {
             JSValue lengthValue = JS_GetPropertyStr(ctx_, value, "length");
@@ -378,7 +378,7 @@ private:
             }
             JS_FreeValue(ctx_, lengthValue);
 
-            auto result = std::make_shared<std::vector<doof::JsonValue>>();
+            auto result = std::make_shared<std::vector<doof::SerialValue>>();
             result->reserve(length);
             for (uint32_t index = 0; index < length; ++index) {
                 JSValue item = JS_GetPropertyUint32(ctx_, value, index);
@@ -393,7 +393,7 @@ private:
                 }
                 result->push_back(doof::success_value(converted));
             }
-            return doof::Success<doof::JsonValue>{doof::JsonValue(std::move(result))};
+            return doof::Success<doof::SerialValue>{doof::SerialValue(std::move(result))};
         }
         if (JS_IsObject(value)) {
             JSPropertyEnum* properties = nullptr;
@@ -402,7 +402,7 @@ private:
                 return doof::Failure<std::shared_ptr<JsError>>{exceptionError("convert")};
             }
 
-            auto result = std::make_shared<doof::JsonObject::element_type>();
+            auto result = std::make_shared<doof::SerialObject::element_type>();
             for (uint32_t index = 0; index < count; ++index) {
                 const char* keyText = JS_AtomToCString(ctx_, properties[index].atom);
                 if (keyText == nullptr) {
@@ -427,7 +427,7 @@ private:
                 result->insert_or_assign(key, doof::success_value(converted));
             }
             freePropertyNames(properties, count);
-            return doof::Success<doof::JsonValue>{doof::JsonValue(std::move(result))};
+            return doof::Success<doof::SerialValue>{doof::SerialValue(std::move(result))};
         }
         return failure("convert", "value is not JSON-compatible");
     }
@@ -442,8 +442,8 @@ private:
         js_free(ctx_, properties);
     }
 
-    JsValueResult jsonToValue(const doof::JsonValue& value) {
-        const auto& storage = doof::json_storage(value);
+    JsValueResult jsonToValue(const doof::SerialValue& value) {
+        const auto& storage = doof::serial_storage(value);
         if (std::holds_alternative<std::monostate>(storage)) {
             return doof::Success<JSValue>{JS_NULL};
         }
@@ -471,7 +471,7 @@ private:
         if (const auto* text = std::get_if<std::string>(&storage)) {
             return doof::Success<JSValue>{JS_NewStringLen(ctx_, text->data(), text->size())};
         }
-        if (const auto* array = std::get_if<doof::JsonArray>(&storage)) {
+        if (const auto* array = std::get_if<doof::SerialArray>(&storage)) {
             JSValue result = JS_NewArray(ctx_);
             if (JS_IsException(result)) {
                 return doof::Failure<std::shared_ptr<JsError>>{exceptionError("convert")};
@@ -491,7 +491,7 @@ private:
             }
             return doof::Success<JSValue>{result};
         }
-        if (const auto* object = std::get_if<doof::JsonObject>(&storage)) {
+        if (const auto* object = std::get_if<doof::SerialObject>(&storage)) {
             JSValue result = JS_NewObject(ctx_);
             if (JS_IsException(result)) {
                 return doof::Failure<std::shared_ptr<JsError>>{exceptionError("convert")};

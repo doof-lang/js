@@ -26,7 +26,7 @@ Register Doof handlers with `bindJson` when JavaScript code needs to call back
 into the host:
 
 ```doof
-try! engine.bindJson("addOne", (args: JsonValue[]): Result<JsonValue, string> => {
+try! engine.bindJson("addOne", (args: SerialValue[]): Result<SerialValue, string> => {
   value := args[0] as int else { return Failure("expected int argument") }
   return Success(value + 1)
 })
@@ -48,13 +48,13 @@ need tighter limits for untrusted input.
 
 Values crossing from JavaScript to Doof must be JSON-compatible. `eval` and
 `callJson` can return strings, numbers, booleans, null, arrays, and objects that
-fit Doof's `JsonValue` representation.
+fit Doof's `SerialValue` representation.
 
 JavaScript values such as `undefined`, functions, symbols, `bigint`, cyclic
 structures, and non-finite numbers fail with `JsError`.
 
-Arguments passed to `callJson` are `JsonValue[]`, and arguments received by
-`bindJson` handlers are also `JsonValue[]`, so the same JSON boundary applies in
+Arguments passed to `callJson` are `SerialValue[]`, and arguments received by
+`bindJson` handlers are also `SerialValue[]`, so the same JSON boundary applies in
 both directions.
 
 ## Errors
@@ -89,7 +89,7 @@ Defined in [index.do](../index.do).
 ### `JsJsonHandler`
 
 ```doof
-export type JsJsonHandler = (args: JsonValue[]): Result<JsonValue, string>
+export type JsJsonHandler = (args: SerialValue[]): Result<SerialValue, string>
 ```
 
 Handlers registered with `bindJson` receive the JavaScript argument list as JSON
@@ -114,8 +114,8 @@ static constructor(
 Methods:
 
 - `exec(source: string): Result<void, JsError>` runs source for side effects.
-- `eval(source: string): Result<JsonValue, JsError>` evaluates source and returns a JSON-compatible value.
-- `callJson(functionName: string, args: JsonValue[]): Result<JsonValue, JsError>` calls a global JavaScript function with JSON arguments.
+- `eval(source: string): Result<SerialValue, JsError>` evaluates source and returns a JSON-compatible value.
+- `callJson(functionName: string, args: SerialValue[]): Result<SerialValue, JsError>` calls a global JavaScript function with JSON arguments.
 - `bindJson(name: string, handler: JsJsonHandler): Result<void, JsError>` registers or replaces a synchronous global JavaScript function backed by a Doof handler.
 
 Defined in [index.do](../index.do).
