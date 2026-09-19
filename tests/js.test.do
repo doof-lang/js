@@ -130,7 +130,7 @@ export function testBoundHandlerReceivesMultipleJsonArguments(): none {
   engine := requireEngine()
   let received = ""
   requireBind(engine, "capture", (args: SerialValue[]): Result<SerialValue, string> => {
-    received = formatJsonValue(args)
+    received = formatJsonValue(args.cloneReadonly())
     return Success(args.length)
   })
 
