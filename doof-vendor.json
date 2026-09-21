@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "dependencies": [
+    {
+      "name": "quickjs",
+      "kind": "git",
+      "url": "https://github.com/quickjs-ng/quickjs.git",
+      "destination": "vendor/quickjs",
+      "ref": "v0.14.0",
+      "commit": "3c051980ab7e783dfbfb1c70c014ce5e05ecf24c",
+      "keep": ["LICENSE", "dtoa.c", "libregexp.c", "libunicode.c", "quickjs.c", "cutils.h", "dtoa.h", "libregexp.h", "libunicode.h", "libunicode-table.h", "list.h", "quickjs-atom.h", "quickjs-c-atomics.h", "quickjs-libc.h", "quickjs-opcode.h", "quickjs.h"]
+    }
+  ]
+}
