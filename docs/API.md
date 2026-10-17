@@ -15,8 +15,8 @@ runtime installed.
 import { JsEngine } from "std/js"
 
 engine := JsEngine()
-try! engine.exec("function add(a, b) { return a + b }")
-answer := try! engine.callJson("add", [20, 22])
+engine.exec("function add(a, b) { return a + b }")!
+answer := engine.callJson("add", [20, 22])!
 ```
 
 `JsEngine` keeps one JavaScript context alive across calls. Values defined with
@@ -26,11 +26,11 @@ Register Doof handlers with `bindJson` when JavaScript code needs to call back
 into the host:
 
 ```doof
-try! engine.bindJson("addOne", (args: SerialValue[]): Result<SerialValue, string> => {
+engine.bindJson("addOne", (args: SerialValue[]): Result<SerialValue, string> => {
   value := args[0] as int else { return Failure("expected int argument") }
   return Success(value + 1)
-})
-answer := try! engine.eval("addOne(41)")
+})!
+answer := engine.eval("addOne(41)")!
 ```
 
 ## Engine Limits
@@ -63,7 +63,7 @@ All execution methods return `Result<..., JsError>`. `JsError.kind` identifies
 the broad failure category, `message` contains the human-readable failure, and
 `stack` is present when QuickJS can provide a JavaScript stack trace.
 
-Use `try!` for setup scripts that should abort the caller on failure, and handle
+Use postfix `!` for setup scripts that should abort the caller on failure, and handle
 `Failure` explicitly when evaluating user input.
 
 When a `bindJson` handler returns `Failure(message)`, the generated JavaScript
