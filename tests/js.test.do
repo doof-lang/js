@@ -6,19 +6,10 @@ function requireEngine(): JsEngine {
 }
 
 function requireEval(engine: JsEngine, source: string): SerialValue {
-  let value: SerialValue = none
-  let found = false
-
-  case engine.eval(source) {
-    s: Success -> {
-      value = s.value
-      found = true
-    }
-    f: Failure -> assert(false, "expected eval success: ${f.error.kind}: ${f.error.message}")
+  return case engine.eval(source) {
+    s: Success -> s.value,
+    f: Failure -> panic("expected eval success: ${f.error.kind}: ${f.error.message}"),
   }
-
-  assert(found, "expected eval helper to produce a value")
-  return value
 }
 
 function requireExec(engine: JsEngine, source: string): none {
@@ -29,55 +20,31 @@ function requireExec(engine: JsEngine, source: string): none {
 }
 
 function requireCall(engine: JsEngine, name: string, args: SerialValue[]): SerialValue {
-  let value: SerialValue = none
-  let found = false
-
-  case engine.callJson(name, args) {
-    s: Success -> {
-      value = s.value
-      found = true
-    }
-    f: Failure -> assert(false, "expected call success: ${f.error.kind}: ${f.error.message}")
+  return case engine.callJson(name, args) {
+    s: Success -> s.value,
+    f: Failure -> panic("expected call success: ${f.error.kind}: ${f.error.message}"),
   }
-
-  assert(found, "expected call helper to produce a value")
-  return value
 }
 
 function requireEvalFailure(engine: JsEngine, source: string): JsError {
-  let error: JsError | none = none
-
-  case engine.eval(source) {
-    s: Success -> assert(false, "expected eval failure")
-    f: Failure -> { error = f.error }
+  return case engine.eval(source) {
+    _: Success -> panic("expected eval failure"),
+    f: Failure -> f.error,
   }
-
-  assert(error != none, "expected eval failure helper to produce an error")
-  return error!
 }
 
 function requireExecFailure(engine: JsEngine, source: string): JsError {
-  let error: JsError | none = none
-
-  case engine.exec(source) {
-    s: Success -> assert(false, "expected exec failure")
-    f: Failure -> { error = f.error }
+  return case engine.exec(source) {
+    _: Success -> panic("expected exec failure"),
+    f: Failure -> f.error,
   }
-
-  assert(error != none, "expected exec failure helper to produce an error")
-  return error!
 }
 
 function requireCallFailure(engine: JsEngine, name: string, args: SerialValue[] = []): JsError {
-  let error: JsError | none = none
-
-  case engine.callJson(name, args) {
-    s: Success -> assert(false, "expected call failure")
-    f: Failure -> { error = f.error }
+  return case engine.callJson(name, args) {
+    _: Success -> panic("expected call failure"),
+    f: Failure -> f.error,
   }
-
-  assert(error != none, "expected call failure helper to produce an error")
-  return error!
 }
 
 function requireBind(engine: JsEngine, name: string, handler: JsJsonHandler): none {
@@ -88,15 +55,10 @@ function requireBind(engine: JsEngine, name: string, handler: JsJsonHandler): no
 }
 
 function requireBindFailure(engine: JsEngine, name: string, handler: JsJsonHandler): JsError {
-  let error: JsError | none = none
-
-  case engine.bindJson(name, handler) {
-    s: Success -> assert(false, "expected bind failure")
-    f: Failure -> { error = f.error }
+  return case engine.bindJson(name, handler) {
+    _: Success -> panic("expected bind failure"),
+    f: Failure -> f.error,
   }
-
-  assert(error != none, "expected bind failure helper to produce an error")
-  return error!
 }
 
 export function testEvalRoundTripsJsonValues(): none {

@@ -82,7 +82,7 @@ Fields:
 
 - `kind: string`
 - `message: string`
-- `stack: string | null`
+- `stack: string | none`
 
 Defined in [index.do](../index.do).
 
@@ -113,9 +113,9 @@ static constructor(
 
 Methods:
 
-- `exec(source: string): Result<void, JsError>` runs source for side effects.
+- `exec(source: string): Result<none, JsError>` runs source for side effects.
 - `eval(source: string): Result<SerialValue, JsError>` evaluates source and returns a JSON-compatible value.
 - `callJson(functionName: string, args: SerialValue[]): Result<SerialValue, JsError>` calls a global JavaScript function with JSON arguments.
-- `bindJson(name: string, handler: JsJsonHandler): Result<void, JsError>` registers or replaces a synchronous global JavaScript function backed by a Doof handler.
+- `bindJson(name: string, handler: JsJsonHandler): Result<none, JsError>` registers or replaces a synchronous global JavaScript function backed by a Doof handler.
 
 Defined in [index.do](../index.do).
